@@ -108,7 +108,10 @@ CK_RV C_GetTokenInfo(
     memcpy(pInfo->model, model.c_str(), model.size());
     memcpy(pInfo->serialNumber, serial.c_str(), serial.size());
 
-    pInfo->flags = CKF_LOGIN_REQUIRED;
+    pInfo->flags =
+    CKF_TOKEN_INITIALIZED |
+    CKF_LOGIN_REQUIRED |
+    CKF_USER_PIN_INITIALIZED;
 
     return CKR_OK;
 }
@@ -131,9 +134,9 @@ CK_FUNCTION_LIST function_list = {
     .C_SetPIN = nullptr,
 
     .C_OpenSession = C_OpenSession,
-    .C_CloseSession = nullptr,
+    .C_CloseSession = C_CloseSession,
     .C_CloseAllSessions = nullptr,
-    .C_GetSessionInfo = nullptr,
+    .C_GetSessionInfo = C_GetSessionInfo,
     .C_GetOperationState = nullptr,
     .C_SetOperationState = nullptr,
 
@@ -143,8 +146,8 @@ CK_FUNCTION_LIST function_list = {
     .C_CreateObject = nullptr,
     .C_CopyObject = nullptr,
     .C_DestroyObject = nullptr,
-    .C_GetObjectSize = nullptr,
-    .C_GetAttributeValue = nullptr,
+    .C_GetObjectSize = C_GetObjectSize,
+    .C_GetAttributeValue = C_GetAttributeValue,
     .C_SetAttributeValue = nullptr,
 
     .C_FindObjectsInit = C_FindObjectsInit,

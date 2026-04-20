@@ -10,13 +10,13 @@ extern std::vector<uint8_t> xor_data(const std::vector<uint8_t>&, const std::vec
 
 static std::vector<uint8_t> current_key;
 
-CK_RV C_SignInit(CK_SESSION_HANDLE session,
-                 CK_MECHANISM_PTR pMechanism,
-                 CK_OBJECT_HANDLE hKey) {
+extern "C"
+CK_RV C_SignInit(CK_SESSION_HANDLE,
+                 CK_MECHANISM_PTR,
+                 CK_OBJECT_HANDLE) {
 
-    std::string password = "dev-password";
+    std::string password = "your-password";
 
-    // Load B & C
     auto B_enc = load_file("B.enc");
     auto C_enc = load_file("C.enc");
 
@@ -25,12 +25,11 @@ CK_RV C_SignInit(CK_SESSION_HANDLE session,
 
     current_key = xor_data(B, C);
 
-    std::cout << "[PKCS11] Key reconstructed\n";
-
     return CKR_OK;
 }
 
-CK_RV C_Sign(CK_SESSION_HANDLE session,
+extern "C"
+CK_RV C_Sign(CK_SESSION_HANDLE,
              CK_BYTE_PTR pData,
              CK_ULONG ulDataLen,
              CK_BYTE_PTR pSignature,
@@ -48,7 +47,7 @@ CK_RV C_Sign(CK_SESSION_HANDLE session,
     unsigned int sigLen = 0;
 
     if (!pSignature) {
-        *pulSignatureLen = 256; // RSA 2048
+        *pulSignatureLen = 256;
         return CKR_OK;
     }
 
