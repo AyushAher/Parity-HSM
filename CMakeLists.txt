@@ -41,6 +41,7 @@ target_link_libraries(parity_core
     ${ARGON2_LIB}
 )
 
+
 # =========================
 # MAIN EXECUTABLE
 # =========================

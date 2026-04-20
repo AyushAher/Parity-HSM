@@ -3,10 +3,16 @@
 #include <cstring>
 #include <iostream>
 
+#include "pkcs11_state.h"
+
+std::string g_pin = "";
+bool logged_in = false;
+
 struct Slot {
     CK_SLOT_ID id;
     std::string path;   // /dev/rdisk5s2
 };
+
 
 extern "C"
 
@@ -57,16 +63,6 @@ CK_RV C_OpenSession(CK_SLOT_ID slotID,
     *phSession = 1;
     return CKR_OK;
 }
-
-CK_RV C_Login(CK_SESSION_HANDLE session,
-              CK_USER_TYPE userType,
-              CK_UTF8CHAR_PTR pPin,
-              CK_ULONG ulPinLen) {
-
-    std::cout << "[PKCS11] Login\n";
-    return CKR_OK;
-}
-
 
 
 extern "C"

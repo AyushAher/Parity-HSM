@@ -2,6 +2,7 @@
 #include <openssl/evp.h>
 #include <vector>
 #include <iostream>
+#include "pkcs11_state.h"
 
 // your existing functions
 extern std::vector<uint8_t> load_file(const std::string&);
@@ -15,7 +16,10 @@ CK_RV C_SignInit(CK_SESSION_HANDLE,
                  CK_MECHANISM_PTR,
                  CK_OBJECT_HANDLE) {
 
-    std::string password = "your-password";
+    if (!logged_in)
+    return CKR_USER_NOT_LOGGED_IN;
+
+    std::string password = g_pin;
 
     auto B_enc = load_file("B.enc");
     auto C_enc = load_file("C.enc");
