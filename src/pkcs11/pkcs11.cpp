@@ -18,21 +18,31 @@ CK_RV C_Initialize(void* pInitArgs) {
 CK_RV C_Finalize(void* pReserved) {
     return CKR_OK;
 }
+extern "C"
+CK_RV C_GetSlotList(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount)
+{
+    if (!pulCount)
+        return CKR_ARGUMENTS_BAD;
 
-// --- SLOT LIST ---
-CK_RV C_GetSlotList(CK_BBOOL tokenPresent,
-                    CK_SLOT_ID_PTR pSlotList,
-                    CK_ULONG_PTR pulCount) {
+    // We expose 1 slot for now
+    CK_ULONG slot_count = 1;
 
-    if (!pulCount) return CKR_ARGUMENTS_BAD;
-
-    if (!pSlotList) {
-        *pulCount = 1;
+    // First call: just return count
+    if (pSlotList == nullptr) {
+        *pulCount = slot_count;
         return CKR_OK;
     }
 
-    pSlotList[0] = 0;
-    *pulCount = 1;
+    // If buffer too small
+    if (*pulCount < slot_count) {
+        *pulCount = slot_count;
+        return CKR_BUFFER_TOO_SMALL;
+    }
+
+    // Fill slots
+    pSlotList[0] = 1;
+
+    *pulCount = slot_count;
 
     return CKR_OK;
 }
@@ -55,7 +65,55 @@ CK_RV C_Login(CK_SESSION_HANDLE session,
 
     std::cout << "[PKCS11] Login\n";
     return CKR_OK;
-}CK_FUNCTION_LIST function_list = {
+}
+
+
+
+extern "C"
+CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo) 
+{
+    if (!pInfo)
+        return CKR_ARGUMENTS_BAD;
+
+    memset(pInfo, 0, sizeof(CK_SLOT_INFO));
+
+    std::string desc = "Parity HSM Slot";
+    std::string manuf = "Parity";
+
+    memcpy(pInfo->slotDescription, desc.c_str(), desc.size());
+    memcpy(pInfo->manufacturerID, manuf.c_str(), manuf.size());
+
+    pInfo->flags = CKF_TOKEN_PRESENT;
+
+    return CKR_OK;
+}
+
+extern "C"
+CK_RV C_GetTokenInfo(
+    CK_SLOT_ID slotID,
+    CK_TOKEN_INFO_PTR pInfo
+) {
+    if (!pInfo)
+        return CKR_ARGUMENTS_BAD;
+
+    memset(pInfo, 0, sizeof(CK_TOKEN_INFO));
+
+    std::string label = "ParityHSM";
+    std::string manuf = "Parity";
+    std::string model = "v1";
+    std::string serial = "0001";
+
+    memcpy(pInfo->label, label.c_str(), label.size());
+    memcpy(pInfo->manufacturerID, manuf.c_str(), manuf.size());
+    memcpy(pInfo->model, model.c_str(), model.size());
+    memcpy(pInfo->serialNumber, serial.c_str(), serial.size());
+
+    pInfo->flags = CKF_LOGIN_REQUIRED;
+
+    return CKR_OK;
+}
+
+CK_FUNCTION_LIST function_list = {
     .version = {2, 40},
 
     .C_Initialize = C_Initialize,
@@ -64,8 +122,8 @@ CK_RV C_Login(CK_SESSION_HANDLE session,
     .C_GetFunctionList = C_GetFunctionList,
 
     .C_GetSlotList = C_GetSlotList,
-    .C_GetSlotInfo = nullptr,
-    .C_GetTokenInfo = nullptr,
+    .C_GetSlotInfo = C_GetSlotInfo,
+    .C_GetTokenInfo = C_GetTokenInfo,
     .C_GetMechanismList = nullptr,
     .C_GetMechanismInfo = nullptr,
     .C_InitToken = nullptr,
