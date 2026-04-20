@@ -1,0 +1,5 @@
+*.enc
+*.pem
+*.bin
+parity_hsm
+build/
