@@ -1,5 +1,5 @@
 {
-  "usb_path": "/dev/rdisk5s2",
+  "usb_path": "/dev/rdisk4s2",
   "usb_offset": 4096,
   "key_size": 2048,
   "password": "1234"
