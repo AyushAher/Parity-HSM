@@ -28,6 +28,7 @@ add_library(parity_core STATIC
     src/crypto/xor.cpp
 
     src/core/hsm.cpp
+    src/core/vault.cpp
 
     src/storage/usb.cpp
     src/storage/disk.cpp
@@ -60,6 +61,7 @@ target_link_libraries(parity_hsm
 # =========================
 add_library(parity_pkcs11 SHARED
     src/pkcs11/pkcs11.cpp
+    src/pkcs11/session.cpp
     src/pkcs11/object.cpp
     src/pkcs11/crypto.cpp
 )

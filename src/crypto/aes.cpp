@@ -34,7 +34,6 @@ std::vector<uint8_t> derive_key(const std::string& password, const uint8_t* salt
     return key;
 }
 
-// 🔐 Encrypt (AES-256-GCM)
 std::vector<uint8_t> aes_encrypt(
     const std::vector<uint8_t>& data,
     const std::string& password
@@ -77,7 +76,6 @@ std::vector<uint8_t> aes_encrypt(
     return out;
 }
 
-// 🔓 Decrypt
 std::vector<uint8_t> aes_decrypt(
     const std::vector<uint8_t>& data,
     const std::string& password

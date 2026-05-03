@@ -1,0 +1,12 @@
+openssl_conf = openssl_init
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+
+pkcs11 = pkcs11_section
+default = default_sect
+
+[pkcs11_section]
+module = "/Users/ayushaher/Projects/Parity HSM/libparity_pkcs11.so"
