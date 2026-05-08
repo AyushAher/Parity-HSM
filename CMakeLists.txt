@@ -28,6 +28,7 @@ add_library(parity_core STATIC
     src/crypto/xor.cpp
 
     src/core/hsm.cpp
+    src/core/secure_memory.cpp
     src/core/vault.cpp
 
     src/storage/usb.cpp

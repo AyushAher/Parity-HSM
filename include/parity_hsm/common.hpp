@@ -18,7 +18,7 @@ std::vector<uint8_t> aes_decrypt(
 );
 
 void usb_write(const std::string& path, size_t offset, const std::vector<uint8_t>& data);
-std::vector<uint8_t> usb_read(const std::string& path, size_t offset, size_t size);
+std::vector<uint8_t> usb_read(const std::string& path, size_t offset, size_t size = 0);
 
 void save_file(const std::string& path, const std::vector<uint8_t>& data);
 std::vector<uint8_t> load_file(const std::string& path);

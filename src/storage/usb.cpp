@@ -66,7 +66,7 @@ void usb_write(const std::string& path, size_t offset, const std::vector<uint8_t
 }
 
 // Read back data from USB
-std::vector<uint8_t> usb_read(const std::string& path, size_t offset) {
+std::vector<uint8_t> usb_read(const std::string& path, size_t offset, size_t size) {
     int fd = open(path.c_str(), O_RDONLY);
 
     if (fd < 0) {
@@ -80,7 +80,6 @@ std::vector<uint8_t> usb_read(const std::string& path, size_t offset) {
         return {};
     }
 
-    // Read size first
     uint32_t original_size = 0;
 
     if (lseek(fd, offset, SEEK_SET) < 0) {
@@ -89,16 +88,33 @@ std::vector<uint8_t> usb_read(const std::string& path, size_t offset) {
         return {};
     }
 
-    if (read(fd, &original_size, sizeof(original_size)) <= 0) {
+    const ssize_t size_read = read(fd, &original_size, sizeof(original_size));
+    if (size_read == 0) {
+        close(fd);
+        return {};
+    }
+
+    if (size_read < 0) {
         perror("read size failed");
         close(fd);
         return {};
     }
 
-    // Read actual data
+    if (original_size == 0) {
+        close(fd);
+        return {};
+    }
+
+    if (size != 0 && original_size > size) {
+        std::cerr << "Stored block exceeds requested limit\n";
+        close(fd);
+        return {};
+    }
+
     std::vector<uint8_t> data(original_size);
 
-    if (read(fd, data.data(), original_size) <= 0) {
+    const ssize_t data_read = read(fd, data.data(), original_size);
+    if (data_read <= 0) {
         perror("read data failed");
         close(fd);
         return {};

@@ -14,7 +14,13 @@ MODULE_PATH="${1:-$ROOT_DIR/build/libparity_pkcs11.so}"
 "$ROOT_DIR/scripts/validate_pkcs11_object_search.sh" "$MODULE_PATH"
 "$ROOT_DIR/scripts/validate_pkcs11_key_management.sh" "$MODULE_PATH"
 "$ROOT_DIR/scripts/validate_pkcs11_encrypt_decrypt.sh" "$MODULE_PATH"
+"$ROOT_DIR/scripts/validate_pkcs11_partitions.sh" "$MODULE_PATH"
 "$ROOT_DIR/scripts/validate_pkcs11_export.sh" "$MODULE_PATH"
 "$ROOT_DIR/scripts/validate_pkcs11_sign_verify.sh" "$MODULE_PATH"
 
+"$ROOT_DIR/scripts/validate_pkcs11_negative.sh" "$MODULE_PATH"
+"$ROOT_DIR/scripts/validate_pkcs11_concurrency.sh" "$MODULE_PATH"
+"$ROOT_DIR/scripts/validate_pkcs11_compliance.sh" "$MODULE_PATH"
+"$ROOT_DIR/scripts/key-pair-gen.sh" "$MODULE_PATH"
+ 
 echo "All PKCS#11 validations passed."

@@ -1,4 +1,5 @@
 #include "parity_hsm/common.hpp"
+#include "parity_hsm/secure_memory.h"
 #include "parity_hsm/vault.h"
 
 #include <openssl/rand.h>
@@ -24,10 +25,16 @@ void generate_and_store(const std::string& config_path) {
     int bits = cfg["key_size"];
     std::string password = cfg["password"];
 
-    if (!hsm_vault_exists())
+    if (!hsm_vault_exists()) {
         hsm_vault_initialize(password, "ParityHSM");
+        auto so_key = hsm_vault_authenticate(CKU_SO, password);
+        hsm_vault_initialize_user_pin(so_key, password);
+        secure_clear(so_key);
+    }
 
-    auto key = hsm_vault_generate_rsa_key(password, "", "ParityKey", bits);
+    auto user_key = hsm_vault_authenticate(CKU_USER, password);
+    auto key = hsm_vault_generate_rsa_key(user_key, "default", "", "ParityKey", bits);
+    secure_clear(user_key);
 
     std::cout << "Key generated and stored in hidden HSM vault\n";
     std::cout << "Vault: " << hsm_vault_path() << std::endl;
@@ -62,7 +69,10 @@ void recover_key(
 ) {
     std::cout << "Starting recovery...\n";
     hsm_vault_import_legacy_if_needed(password);
-    auto A = hsm_vault_default_private_key(password);
+    auto user_key = hsm_vault_authenticate(CKU_USER, password);
+    auto A = hsm_vault_load_private_key(user_key, "default", "01");
+    secure_clear(user_key);
     std::cout << "Reconstructed key from hidden parity vault\n";
     validate_rsa_key(A);
+    secure_clear(A);
 }

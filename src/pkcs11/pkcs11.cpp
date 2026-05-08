@@ -4,39 +4,42 @@
 #include <iostream>
 
 #include "pkcs11_state.h"
+#include "parity_hsm/secure_memory.h"
 #include <parity_hsm/vault.h>
 
-#include <openssl/rand.h>
+static std::mutex g_init_mutex;
 
 namespace {
 bool g_initialized = false;
 }
 
-struct Slot {
-    CK_SLOT_ID id;
-    std::string path;   // /dev/rdisk5s2
-};
-
-
 extern "C"
 
 CK_RV C_Initialize(void* pInitArgs) {
+    
+    std::lock_guard<std::mutex> lock(g_init_mutex);
+
     if (g_initialized)
         return CKR_CRYPTOKI_ALREADY_INITIALIZED;
 
     g_initialized = true;
+
     std::cout << "[PKCS11] Initialize\n";
+
     return CKR_OK;
 }
 
 CK_RV C_Finalize(void* pReserved) {
-    if (pReserved)
-        return CKR_ARGUMENTS_BAD;
+    std::lock_guard<std::mutex> lock(g_init_mutex);
+
     if (!g_initialized)
         return CKR_CRYPTOKI_NOT_INITIALIZED;
 
-    pkcs11_reset_sessions();
     g_initialized = false;
+
+    // Clean global state
+    pkcs11_reset_sessions();
+
     return CKR_OK;
 }
 
@@ -173,6 +176,7 @@ CK_RV C_GetTokenInfo(
     memset(pInfo, 0, sizeof(CK_TOKEN_INFO));
 
     std::string label = "ParityHSM";
+    const bool user_pin_initialized = hsm_vault_exists();
     std::string manuf = "Parity";
     std::string model = "v1";
     std::string serial = "0001";
@@ -182,10 +186,11 @@ CK_RV C_GetTokenInfo(
     memcpy(pInfo->model, model.c_str(), model.size());
     memcpy(pInfo->serialNumber, serial.c_str(), serial.size());
 
-    pInfo->flags =
-    CKF_TOKEN_INITIALIZED |
-    CKF_LOGIN_REQUIRED |
-    CKF_USER_PIN_INITIALIZED;
+    pInfo->flags = CKF_LOGIN_REQUIRED;
+    if (hsm_vault_exists())
+        pInfo->flags |= CKF_TOKEN_INITIALIZED;
+    if (user_pin_initialized)
+        pInfo->flags |= CKF_USER_PIN_INITIALIZED;
 
     return CKR_OK;
 }
@@ -226,15 +231,60 @@ CK_RV C_InitToken(CK_SLOT_ID slotID, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen, CK
 }
 
 extern "C"
-CK_RV C_InitPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR, CK_ULONG)
+CK_RV C_InitPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen)
 {
-    return pkcs11_get_session(hSession) ? CKR_ACTION_PROHIBITED : CKR_SESSION_HANDLE_INVALID;
+    auto session = pkcs11_get_session(hSession);
+    if (!session)
+        return CKR_SESSION_HANDLE_INVALID;
+    if (!session->authenticated || session->login_type != CKU_SO)
+        return CKR_USER_NOT_LOGGED_IN;
+    if (!pPin || ulPinLen == 0)
+        return CKR_PIN_INVALID;
+
+    try {
+        std::string pin(reinterpret_cast<char*>(pPin), ulPinLen);
+        hsm_vault_initialize_user_pin(session->auth_key, pin);
+        secure_clear(pin);
+    } catch (...) {
+        return CKR_FUNCTION_FAILED;
+    }
+    return CKR_OK;
 }
 
 extern "C"
-CK_RV C_SetPIN(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR, CK_ULONG, CK_UTF8CHAR_PTR, CK_ULONG)
+CK_RV C_SetPIN(CK_SESSION_HANDLE hSession,
+               CK_UTF8CHAR_PTR,
+               CK_ULONG,
+               CK_UTF8CHAR_PTR pNewPin,
+               CK_ULONG ulNewLen)
 {
-    return pkcs11_get_session(hSession) ? CKR_ACTION_PROHIBITED : CKR_SESSION_HANDLE_INVALID;
+    auto session = pkcs11_get_session(hSession);
+    if (!session)
+        return CKR_SESSION_HANDLE_INVALID;
+    if (!session->authenticated)
+        return CKR_USER_NOT_LOGGED_IN;
+    if (!pNewPin || ulNewLen == 0)
+        return CKR_PIN_INVALID;
+
+    try {
+        std::string new_pin(reinterpret_cast<char*>(pNewPin), ulNewLen);
+        hsm_vault_change_pin(session->auth_key, session->login_type, new_pin);
+        auto refreshed_key = hsm_vault_authenticate(session->login_type, new_pin);
+        {
+            std::lock_guard<std::mutex> lock(g_sessions_mutex);
+            for (auto& [_, item] : g_sessions) {
+                if (item->authenticated && item->login_type == session->login_type) {
+                    secure_clear(item->auth_key);
+                    item->auth_key = refreshed_key;
+                }
+            }
+        }
+        secure_clear(refreshed_key);
+        secure_clear(new_pin);
+    } catch (...) {
+        return CKR_FUNCTION_FAILED;
+    }
+    return CKR_OK;
 }
 
 extern "C"
@@ -303,10 +353,10 @@ CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession,
                         CK_OBJECT_HANDLE_PTR phPublicKey,
                         CK_OBJECT_HANDLE_PTR phPrivateKey)
 {
-    auto* session = pkcs11_get_session(hSession);
+    auto session = pkcs11_get_session(hSession);
     if (!session)
         return CKR_SESSION_HANDLE_INVALID;
-    if (!session->user_logged_in)
+    if (!session->authenticated || (session->login_type != CKU_USER && session->login_type != CKU_SO))
         return CKR_USER_NOT_LOGGED_IN;
     if (!pMechanism)
         return CKR_ARGUMENTS_BAD;
@@ -342,8 +392,8 @@ CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE hSession,
     read_template(pPrivateKeyTemplate, ulPrivateKeyAttributeCount);
 
     try {
-        auto record = hsm_vault_generate_rsa_key(session->pin, id_hex, label, bits);
-        auto keys = hsm_vault_load(session->pin);
+        auto record = hsm_vault_generate_rsa_key(session->auth_key, session->partition, id_hex, label, bits);
+        auto keys = hsm_vault_view(session->auth_key, session->partition).keys;
         CK_ULONG index = 1;
         for (CK_ULONG i = 0; i < keys.size(); ++i) {
             if (keys[i].id_hex == record.id_hex) {
